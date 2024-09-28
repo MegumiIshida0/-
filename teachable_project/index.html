@@ -1,64 +1,60 @@
-<div>Teachable Machine Image Model - 画像アップロードで分類</div>
-
-<!-- 画像アップロード用のインプットと分類結果を表示するエリア -->
-<input type="file" id="imageUpload" accept="image/*" onchange="loadImage(event)">
-<br>
-<div id="label-container">分類結果はここに表示されます。</div>
-<canvas id="canvas"></canvas>
-
-<!-- TensorFlow.js ライブラリ -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-
+<div>Teachable Machine Image Model</div>
+<button type="button" onclick="init()">Start</button>
+<div id="webcam-container"></div>
+<div id="label-container"></div>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 <script type="text/javascript">
-  let model;
-  let canvas, ctx;
-  let imageModelURL = 'https://teachablemachine.withgoogle.com/models/O2CXrhSLy/model.json';
+    // More API functions here:
+    // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
 
-  // モデルをロードする
-  async function loadModel() {
-    console.log("モデルをロード中...");
-    model = await tf.loadLayersModel(imageModelURL);
-    console.log("モデルが正常にロードされました！");
-  }
+    // the link to your model provided by Teachable Machine export panel
+    const URL = "https://teachablemachine.withgoogle.com/models/O2CXrhSLy/";
 
-  // 画像アップロード時に画像を分類するための関数
-  function loadImage(event) {
-    console.log('画像が選択されました');
-    let img = new Image();
-    img.onload = function() {
-      console.log('画像が読み込まれました！');
-      canvas = document.getElementById('canvas');
-      ctx = canvas.getContext('2d');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-      console.log('画像がキャンバスに描画されました:', img.width, img.height);
-      classifyImage(); // キャンバスを分類
-    };
-    img.src = URL.createObjectURL(event.target.files[0]);
-  }
+    let model, webcam, labelContainer, maxPredictions;
 
-  // 画像を分類
-  async function classifyImage() {
-    console.log('分類処理を開始しました');
-    const img = tf.browser.fromPixels(canvas);
-    const resized = tf.image.resizeBilinear(img, [224, 224]); // モデルに合わせて画像をリサイズ
-    const tensor = resized.expandDims(0);
-    const predictions = await model.predict(tensor);
-    predictions.array().then(scores => {
-      console.log('分類結果:', scores);
-      displayResult(scores); // 結果を表示する関数を呼び出し
-    });
-  }
+    // Load the image model and setup the webcam
+    async function init() {
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
 
-  // 分類結果を表示
-  function displayResult(scores) {
-    let classNames = ['フォーマル', '水着', 'その他']; // クラス名を定義
-    let maxScoreIndex = scores[0].indexOf(Math.max(...scores[0]));
-    let result = classNames[maxScoreIndex]; // 最も高いスコアのクラス名を取得
-    document.getElementById("label-container").innerHTML = `分類結果: ${result}`;
-  }
+        // load the model and metadata
+        // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
+        // or files from your local hard drive
+        // Note: the pose library adds "tmImage" object to your window (window.tmImage)
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
 
-  // モデルの初期化
-  loadModel();
+        // Convenience function to setup a webcam
+        const flip = true; // whether to flip the webcam
+        webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
+        await webcam.setup(); // request access to the webcam
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        // append elements to the DOM
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
+        for (let i = 0; i < maxPredictions; i++) { // and class labels
+            labelContainer.appendChild(document.createElement("div"));
+        }
+    }
+
+    async function loop() {
+        webcam.update(); // update the webcam frame
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    // run the webcam image through the image model
+    async function predict() {
+        // predict can take in an image, video or canvas html element
+        const prediction = await model.predict(webcam.canvas);
+        for (let i = 0; i < maxPredictions; i++) {
+            const classPrediction =
+                prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+            labelContainer.childNodes[i].innerHTML = classPrediction;
+        }
+    }
 </script>
+
