@@ -17,7 +17,7 @@
   // モデルをロードする
   async function loadModel() {
     console.log("モデルをロード中...");
-    model = await tf.loadGraphModel(imageModelURL);
+    model = await tf.loadLayersModel(imageModelURL);
     console.log("モデルが正常にロードされました！");
   }
 
